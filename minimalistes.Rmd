@@ -100,7 +100,7 @@ getdatazip <- function(url, file, exdir) {
 ```
 
 puis on télécharge les données :
-```{r}
+```{r warning=FALSE}
 dir.create('data')
 getdatazip( "http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_airports.zip", 'data/aeroports.zip', 'data/aeroports/')
 list.files('data/aeroports/')
@@ -144,7 +144,7 @@ plot(shape,pch=19,cex=.7)
 
 Une base de données des rivières sur trouve sur [github.com/jjrom/hydre](https://github.com/jjrom/hydre/tree/master/mapserver/geodata/rivers). Ces données sont un peu plus difficiles à récupérer, car elles ne sont pas au format zip mais en 7 fichiers à télécharger individuellement.
 
-```{r}
+```{r warning=FALSE}
 loc="https://raw.githubusercontent.com/jjrom/hydre/master/mapserver/geodata/rivers/GRDC_687_rivers"
 ext=c(".dbf",".prj",".sbn",".sbx",".shp",".shp.xml",".shx")
 dir.create('data/rivieres')
@@ -205,6 +205,7 @@ shape <- readShapeLines("data/routes/ne_10m_roads.shp")
 plot(shape,pch=19,lwd=.7)
 ```
 
+(Un lecteur nous signale qu'il y a sur notre carte des “routes” reliant l'Islande, la Norvège et la Grande-Bretagne; ce sont probablement des ferry.)
 
 ## 6. Les lacs
 
