@@ -1,0 +1,231 @@
+---
+title: "Cartes Minimalistes"
+author: "Arthur Charpentier"
+date: "07/09/2015"
+output: html_document
+---
+
+Le [logiciel R](https://fr.wikipedia.org/wiki/R_(langage_de_programmation_et_environnement_statistique)) peut être installé, librement et gratuitement, depuis un des dépôts du [CRAN](https://cran.r-project.org/) (Comprehensive R Archive Network), ou, pour un éditeur plus convivial, via [RStudio](https://www.rstudio.com/products/rstudio/download/). Une des richesses de R, c'est sa (vaste) communauté d'utilisateurs, qui partagent des librairies de fonctions (appelées _packages_), par exemple en [cartographie](https://cran.r-project.org/web/views/Spatial.html). Ces librairies proposent divers outils comme des fonctions ou des bases de données.
+
+
+Pour installer un package, on emploie la commande :
+```{r eval=FALSE}
+install.packages("maps",dependencies=TRUE,repos='http://cran.us.r-project.org')
+```
+
+Cette instruction va installer sur notre disque dur les divers objets du package `maps`. Ces fonctions doivent ensuite être chargées en mémoire :
+```{r eval=FALSE}
+library(maps)
+```
+
+Cependant, le package `maps` est peut-être déjà installé sur notre système : inutile, dans ce cas, de le télécharger à nouveau. Introduisons dès à présent une fonction qui permet de ne télécharger qu'une fois :
+```{r results='hide', message=FALSE, warning=FALSE}
+libload <- function(libx) {
+  if(!require(libx, character.only=TRUE)){
+    install.packages(libx,dependencies=TRUE,repos='http://cran.us.r-project.org')
+  }
+  return (library(libx, character.only=TRUE))
+}
+```
+
+Puis:
+```{r}
+libload('maps')
+```
+
+## 1. Les villes
+
+Le package `maps` contient, entre autres choses, une base de la localisation des principales villes du monde, dont on peut afficher un extrait de quelques lignes ainsi :
+```{r}
+data("world.cities")
+tail(world.cities[,c(1,2,4,5)])
+```
+
+Les quatre colonnes de données affichées sont: le nom de la ville (1), son pays (2), sa latitude (4) et sa longitude (5). (La base contient d'autres éléments, comme par exemple la population, champ numéro 3.)
+
+Pour obtenir le premier graphique, on emploie la fonction `plot()`, qui trace des points, en indiquant les longitude (`world.cities$lon`) et latitude (`world.cities$lon`) de chaque ville, avec des points pleins (option `pch=19`) et pas trop gros (`cex=.7`) -- n'oublions pas qu'il y a 43 645 points à représenter sur la “carte” --, sans dessiner ni axe ni libellés :
+
+```{r}
+plot(world.cities$lon,world.cities$lat,pch=19,cex=.7,axes=FALSE,xlab="",ylab="")
+```
+
+L'image est un peu trop dense à notre goût, on va la simplifier en affichant moins de points. Par exemple, en se limitant aux villes de plus de 100 000 habitants. Le plus simple est de filtrer le contenu pour n'en retenir qu'une sous-base :
+```{r}
+world.cities.sub = subset(world.cities,pop>100000)
+```
+et de reprendre le code précédent:
+```{r}
+plot(world.cities.sub$lon,world.cities.sub$lat,pch=19,cex=.7,axes=FALSE,xlab="",ylab="")
+```
+
+Cette fois, seules 4 251 villes sont représentées.
+
+## 1.bis Projection
+
+On notera qu'il est possible de choisir une autre projection géographique. Pour changer de système, on peut utiliser la fonction suivante :
+```{r}
+libload('mapproj')
+xy=mapproject(world.cities.sub$lon,world.cities.sub$lat, projection="gilbert")
+plot(xy$x,xy$y,pch=19,cex=.7,axes=FALSE,xlab="",ylab="")
+```
+
+qui donne une projection de [Gilbert](https://www.jasondavies.com/maps/gilbert/). On peut aussi visualiser une projection de type [Lambert](https://en.wikipedia.org/wiki/Lambert_conformal_conic_projection),
+```{r}
+xy=mapproject(world.cities.sub$lon,world.cities.sub$lat, projection="lambert",param=c(50,10))
+plot(xy$x,xy$y,pch=19,cex=.7,axes=FALSE,xlab="",ylab="")
+```
+
+## 2. Les aéroports
+
+
+Dans la plupart des situations, les données nécessaires pour créer une carte ne se trouvent pas dans un package, et il convient de les trouver sur un site.
+
+C'est le cas pour la localisation des aéroports. Les bases de données proposées par le site [openflights.org](http://openflights.org/data.html#airport) en référencent près de 7 000. Une base plus petite (probablement uniquement les aéroports internationaux) se trouve sur le site [Natural Earth](http://www.naturalearthdata.com/downloads/10m-cultural-vectors/). Il faut télécharger, puis importer la base sous R.
+
+On commence par deux fonctions qui permettront de ne télécharger les données qu'une fois :
+
+```{r}
+getdata <- function(url, file) {
+  if (!file.exists(file)) {
+    download.file(url,destfile=file)
+  }
+}
+
+getdatazip <- function(url, file, exdir) {
+  if (!file.exists(file)) {
+    download.file(url,destfile=file)
+    unzip(file, exdir=exdir)
+  }
+}
+```
+
+puis on télécharge les données :
+```{r}
+dir.create('data')
+getdatazip( "http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_airports.zip", 'data/aeroports.zip', 'data/aeroports/')
+list.files('data/aeroports/')
+```
+
+On obtient ainsi un ensemble de fichiers qui composent un _shapefile_; ils contiennent des objets géoréférencés, comme des lignes, des polygones ou des points. Pour importer ce shapefile dans R, il convient d'installer le package dédié :
+```{r}
+libload("maptools")
+```
+
+On charge ensuite les fonctions en mémoire, et on utilise la fonction `readShapePoints()` (la base des aéroports est une collection de points géographiques).
+```{r}
+shape <- readShapePoints("data/aeroports/ne_10m_airports.shp")
+```
+
+Les 890 aéroports ont les coordonnées suivantes
+```{r}
+tail(shape@coords)
+```
+que l'on peut visualiser avec la commande
+```{r}
+plot(shape,pch=19,cex=.7)
+```
+
+## 3. Les ports maritimes
+
+Tant qu'on est sur un format de points, le processus est toujours le même. La seule difficulté est de trouver les bases localisant des points intéressants. 
+
+Autre exemple, les {ports} se trouvent aussi sur 
+[http://www.naturalearthdata.com/](http://www.naturalearthdata.com/downloads/10m-cultural-vectors/) :
+```{r}
+getdatazip( "http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_ports.zip", 'data/ports.zip', 'data/ports/')
+loc=""
+shape <- readShapePoints("data/ports/ne_10m_ports.shp")
+plot(shape,pch=19,cex=.7)
+```
+
+
+## 4. Les rivières
+
+
+Une base de données des rivières sur trouve sur [github.com/jjrom/hydre](https://github.com/jjrom/hydre/tree/master/mapserver/geodata/rivers). Ces données sont un peu plus difficiles à récupérer, car elles ne sont pas au format zip mais en 7 fichiers à télécharger individuellement.
+
+```{r}
+loc="https://raw.githubusercontent.com/jjrom/hydre/master/mapserver/geodata/rivers/GRDC_687_rivers"
+ext=c(".dbf",".prj",".sbn",".sbx",".shp",".shp.xml",".shx")
+dir.create('data/rivieres')
+for(i in 1:length(ext)){
+ loc1=paste(loc,ext[i],"?raw=true",sep="")
+ loc2=paste("data/rivieres/GRDC_687_rivers",ext[i],sep="")
+ getdata(loc1,loc2)
+}
+```
+
+Cette fois-ci, ce qu'on veut visualiser n'est pas constitué de points, mais de lignes. On importe la base avec la fonction `readShapeLines()`.
+```{r}
+shape <- readShapeLines("data/rivieres/GRDC_687_rivers.shp")
+```
+
+Cet objet est un peu plus complexe que le précédent. Chaque “rivière” est une collection de lignes. Il y en a ici 687. La troisième rivière de la liste est décrite par l'objet `shape@lines[[3]]`, qui est une liste composée de lignes, correspondant à autant de tronçons de rivière que nécessaire. Ainsi, le cinquième tronçon de la troisième rivière est caractérisé par les points
+<html><kbd>shape@lines[[3]]@Lines[[5]]</kbd></html>
+```{r}
+shape@lines[[3]]@Lines[[5]]
+```
+
+Visuellement, on va relier ces points par des segments; l'opération est plus lourde, car on traite des centaines de milliers de coordonnées. La commande à utiliser est :
+```{r}
+plot(shape,col="blue")
+```
+
+## 4.bis Projection
+
+Là encore, on peut changer le système de représentation. C'est un peu plus technique car on n'a pas simplement un vecteur de longitudes, et un vecteur des latitudes.
+```{r,results="hide"}
+libload("sp")
+libload("rgdal")
+```
+
+Cette fois, c'est lors de la lecture du fichier que l'on on va spécifier son système de projection :
+```{r}
+shape <- readShapeLines("data/rivieres/GRDC_687_rivers.shp",proj4string=CRS("+proj=longlat +datum=WGS84"))
+```
+et pour le modifier (par exemple avec une projection de type Lambert) :
+```{r}
+crs.laea <- CRS("+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs")
+shape.nouveau = spTransform(shape,crs.laea)
+```
+Les sigles sont complexes, mais l'aide de R (ou les divers forums) permet toujours de trouver les sigles des principaux systèmes de représentation. Ici
+```{r}
+plot(shape.nouveau,col="blue")
+```
+
+## 5. Les routes
+
+Pour les **routes**, on a compris. Il suffit de trouver la base, de l'importer, de la lire, et de la visualiser. Avec là encore un simple appel de la fonction `plot()` pour garder une forme minimaliste.
+
+La base est sur Natural Earth ; les fonctions `readShapeLines` et `plot(shape,pch=19,lwd=.7)` nous permettent de tracer la carte.
+
+```{r}
+getdatazip("http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/cultural/ne_10m_roads.zip", "data/routes.zip", 'data/routes/')
+shape <- readShapeLines("data/routes/ne_10m_roads.shp")
+plot(shape,pch=19,lwd=.7)
+```
+
+
+## 6. Les lacs
+
+Les lacs se trouvent eux aussi sur Natural Earth. Cette fois, les objets sont des polygones, c'est à dire une collection de sommets reliés entre eux ; on emploie la commande `readShapePoly` pour les importer.
+```{r}
+getdatazip("http://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_lakes.zip", "data/lacs.zip", "data/lacs/")
+shape <- readShapePoly("data/lacs/ne_10m_lakes.shp")
+```
+
+Nous obtenons 1 353 lacs. L'objet `shape@polygons[[3]]` contient le (ou les) polygones décrivant le troisième lac. Le premier de ces polygones est décrit par :
+```{r}
+plot(shape@polygons[[3]]@Polygons[[1]]@coords)
+```
+
+On peut fermer ce polygone et le remplir en bleu :
+```{r}
+plot(shape@polygons[[3]]@Polygons[[1]]@coords)
+polygon(shape@polygons[[3]]@Polygons[[1]]@coords,col="light blue")
+```
+
+C'est ce que l'on va faire, avec tous nos polygones de lacs.
+```{r}
+plot(shape,col="blue",border="blue")
+```
